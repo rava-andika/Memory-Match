@@ -14,16 +14,53 @@ FPS = 60
 
 MODES = {"easy": (4, 4), "medium": (4, 6), "hard": (6, 6), "nightmare": (4, 4)}
 MODE_LIST = ["easy", "medium", "hard", "nightmare"]
-THEMES = {"easy": 4, "medium": 4, "hard": 4}
+MODE_THEME_MAP = {
+    "easy": {
+        1: "flowers",
+        2: "dresses",
+        3: "disney",
+        4: "fc_teams"
+    },
+    "medium": {
+        1: "animals",
+        2: "disney",
+        3: "emoji",
+        4: "fc_teams"
+    },
+    "hard": {
+        1: "animals",
+        2: "disney",
+        3: "emoji",
+        4: "fc_teams"
+    },
+    "nightmare": {
+        1: "nightmare"
+    }
+}
+
+THEME_NAMES = {
+    "easy": ["Flowers", "Dresses", "Disney", "FC Teams"],
+    "medium": ["Animal", "Disney", "Emoji", "FC Teams"],
+    "hard": ["Animal", "Disney", "Emoji", "FC Teams"],
+    "nightmare": ["Nightmare"]
+}
 FLIP_BACK_DELAY = 0.8
 FLIP_ANIMATION_SPEED = 15
 
-ASSETS_DIR = "assets/images"
-AUDIO_DIR = "assets/audio"
+ASSETS_DIR = "assets"
+CARDS_DIR = f"{ASSETS_DIR}/images/cards"
+BACKGROUNDS_DIR = f"{ASSETS_DIR}/images/backgrounds"
+MUSIC_DIR = f"{ASSETS_DIR}/audio/music"
+SFX_DIR = f"{ASSETS_DIR}/audio/sfx"
 DATA_DIR = "data"
-USER_FILE = f"{DATA_DIR}/users.csv"
+
+os.makedirs(CARDS_DIR, exist_ok=True)
+os.makedirs(BACKGROUNDS_DIR, exist_ok=True)
+os.makedirs(MUSIC_DIR, exist_ok=True)
+os.makedirs(SFX_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(AUDIO_DIR, exist_ok=True)
+
+USER_FILE = f"{DATA_DIR}/users.csv"
 SCORE_FILE = f"{DATA_DIR}/score.csv"
 
 COLOR_BACKGROUND = (30, 30, 40)
@@ -49,12 +86,6 @@ STAR_RULES = {
     "medium": [(35, 3), (70, 2), (100, 1)],
     "hard": [(50, 3), (90, 2), (120, 1)],
     "nightmare": [(20, 3), (40, 2), (60, 1)]
-}
-
-THEME_NAMES = {
-    "easy": ["Flowers", "Dresses", "Disney", "FC Teams"],
-    "medium": ["Animal", "Disney", "Emoji", "FC Teams"],
-    "hard": ["Animal", "Disney", "Emoji", "FC Teams"]
 }
 
 
@@ -147,116 +178,142 @@ def user_exists(username: str) -> bool:
 
 
 def load_theme_images(mode: str, theme: int) -> Tuple[List[Tuple], Optional[pygame.Surface]]:
-    folder = f"{ASSETS_DIR}/{mode}/theme{theme}"
+    """
+    OPTIMIZED: Load from shared card collections
+    
+    OLD: assets/images/easy/theme1/card1.png
+         assets/images/medium/theme2/card1.png (DUPLICATE!)
+         assets/images/hard/theme3/card1.png (DUPLICATE!)
+    
+    NEW: assets/images/cards/flowers/card1.png (SHARED!)
+    """
+    collection_name = MODE_THEME_MAP.get(mode, {}).get(theme)
+    
+    if not collection_name:
+        print(f"Warning: No collection for {mode} theme {theme}")
+        collection_name = "animals"
+    
+    collection_path = f"{CARDS_DIR}/{collection_name}"
     imgs = []
+    
+    # Load shared card back
+    back_path = f"{CARDS_DIR}/shared/card_back.png"
     back = None
     
     try:
-        if os.path.isdir(folder):
-            for f in os.listdir(folder):
+        if os.path.exists(back_path):
+            back = pygame.image.load(back_path).convert_alpha()
+        else:
+            back = create_default_back_image()
+    except Exception as e:
+        print(f"Error loading card back: {e}")
+        back = create_default_back_image()
+    
+    try:
+        if os.path.isdir(collection_path):
+            for f in os.listdir(collection_path):
                 if f.lower().endswith((".png", ".jpg", ".jpeg")):
-                    p = os.path.join(folder, f)
+                    p = os.path.join(collection_path, f)
                     try:
                         surf = pygame.image.load(p).convert_alpha()
-                        if f.startswith("back"):
-                            back = surf
-                        else:
-                            imgs.append((surf, f))
+                        imgs.append((surf, f))
                     except Exception as e:
-                        print(f"Error loading image {p}: {e}")
-
-        if back is None:
-            print(f"Warning: Back image not found in {folder}, creating default")
-            back = create_default_back_image()
-
+                        print(f"Error loading {p}: {e}")
+        
         pairs_needed = (MODES[mode][0] * MODES[mode][1]) // 2
         while len(imgs) < pairs_needed:
-            print(f"Warning: Not enough images in {folder}, creating placeholder")
             imgs.append(create_placeholder_image(len(imgs) + 1))
             
     except Exception as e:
-        print(f"Error loading theme images from {folder}: {e}")
+        print(f"Error loading from {collection_path}: {e}")
         pairs_needed = (MODES[mode][0] * MODES[mode][1]) // 2
         imgs = [create_placeholder_image(i + 1) for i in range(pairs_needed)]
-        back = create_default_back_image()
     
     return imgs, back
 
-def create_default_back_image() -> pygame.Surface:
-    surf = pygame.Surface((100, 100))
-    surf.fill((50, 50, 150))
-    pygame.draw.rect(surf, (100, 100, 200), (10, 10, 80, 80), 5)
-    font = pygame.font.SysFont(None, 40)
-    text = font.render("?", True, (255, 255, 255))
-    surf.blit(text, (35, 25))
-    return surf
-
-def create_placeholder_image(number: int) -> Tuple[pygame.Surface, str]:
-    surf = pygame.Surface((100, 100))
-    surf.fill((random.randint(100, 200), random.randint(100, 200), random.randint(100, 200)))
-    font = pygame.font.SysFont(None, 50)
-    text = font.render(str(number), True, (255, 255, 255))
-    text_rect = text.get_rect(center=(50, 50))
-    surf.blit(text, text_rect)
-    return (surf, f"placeholder_{number}")
 
 def load_background_image(path: str, default_color: Tuple = COLOR_BACKGROUND) -> Optional[pygame.Surface]:
+    """Load and scale background"""
     if os.path.exists(path):
         try:
             bg = pygame.image.load(path).convert()
-            bg = pygame.transform.scale(bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
-            return bg
+            return pygame.transform.scale(bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
         except Exception as e:
             print(f"Error loading background {path}: {e}")
-    else:
-        print(f"Warning: Background not found at {path}")
     return None
 
-def load_menu_background() -> Optional[pygame.Surface]:
-    return load_background_image(f"{ASSETS_DIR}/menu_background.jpg")
+
+def load_menu_background(mode: str = "normal", theme: int = 1) -> Optional[pygame.Surface]:
+    """Load menu background - different for nightmare mode"""
+    if mode == "nightmare":
+        path = f"{BACKGROUNDS_DIR}/nightmare_menu.jpg"
+    else:
+        path = f"{BACKGROUNDS_DIR}/menu.jpg"
+    return load_background_image(path)
+
 
 def load_difficulty_background() -> Optional[pygame.Surface]:
-    return load_background_image(f"{ASSETS_DIR}/difficulty_background.jpg")
+    """KEEP unique difficulty background"""
+    return load_background_image(f"{BACKGROUNDS_DIR}/difficulty.jpg")
+
 
 def load_leaderboard_background() -> Optional[pygame.Surface]:
-    return load_background_image(f"{ASSETS_DIR}/leaderboard_background.jpg")
+    """KEEP unique leaderboard background"""
+    return load_background_image(f"{BACKGROUNDS_DIR}/leaderboard.jpg")
+
 
 def load_settings_background() -> Optional[pygame.Surface]:
-    return load_background_image(f"{ASSETS_DIR}/settings_background.jpg")
+    """KEEP unique settings background"""
+    return load_background_image(f"{BACKGROUNDS_DIR}/settings.jpg")
+
 
 def load_theme_background() -> Optional[pygame.Surface]:
-    return load_background_image(f"{ASSETS_DIR}/theme_background.jpg")
+    """KEEP unique theme selection background"""
+    return load_background_image(f"{BACKGROUNDS_DIR}/theme_selection.jpg")
+
 
 def load_game_background(mode: str, theme: int) -> Optional[pygame.Surface]:
-    """Load game background for specific mode and theme."""
+    """
+    Load game background (can be same or different per preference)
+    """
     if mode == "nightmare":
-        bg_path = f"{ASSETS_DIR}/nightmare/background.png"
-        if not os.path.exists(bg_path):
-            bg_path = f"{ASSETS_DIR}/nightmare/theme1/background.png"
-        return load_background_image(bg_path) if os.path.exists(bg_path) else None
+        return load_background_image(f"{BACKGROUNDS_DIR}/nightmare.jpg")
     else:
-        return load_background_image(f"{ASSETS_DIR}/{mode}/theme{theme}/background.png")
+        # Option 1: Use default game background for all
+        # return load_background_image(f"{BACKGROUNDS_DIR}/game_default.jpg")
+        
+        # Option 2: If you want theme-specific game backgrounds, uncomment:
+        collection = MODE_THEME_MAP.get(mode, {}).get(theme)
+        return load_background_image(f"{BACKGROUNDS_DIR}/{collection}.jpg")
+
 
 def load_menu_music() -> Optional[str]:
-    music_path = f"{AUDIO_DIR}/menu_music.mp3"
-    if os.path.exists(music_path):
-        return music_path
-    print(f"Warning: Menu music not found at {music_path}")
-    return None
+    """KEEP unique menu music"""
+    music_path = f"{MUSIC_DIR}/menu.mp3"
+    return music_path if os.path.exists(music_path) else None
+
 
 def load_game_music(mode: str, theme: int) -> Optional[str]:
-    music_path = f"{AUDIO_DIR}/{mode}_theme{theme}.mp3"
-    if os.path.exists(music_path):
-        return music_path
-
-    music_path = f"{AUDIO_DIR}/{mode}_music.mp3"
+    if mode == "nightmare":
+        music_path = f"{MUSIC_DIR}/nightmare.mp3"
+    else:
+        collection = MODE_THEME_MAP.get(mode, {}).get(theme)
+        
+        if collection:
+            music_path = f"{MUSIC_DIR}/{collection}.mp3"
+        else:
+            print(f"Warning: No collection found for {mode} theme {theme}")
+            return None
+    
     if os.path.exists(music_path):
         return music_path
     
-    print(f"Warning: Game music not found for {mode} theme {theme}")
+    print(f"Warning: Music not found at {music_path}")
     return None
 
+
 def load_sound_effects() -> dict:
+    """Load sound effects"""
     sounds = {}
     
     sound_files = {
@@ -266,7 +323,7 @@ def load_sound_effects() -> dict:
     }
     
     for key, filename in sound_files.items():
-        path = f"{AUDIO_DIR}/{filename}"
+        path = f"{SFX_DIR}/{filename}"
         if os.path.exists(path):
             try:
                 sounds[key] = pygame.mixer.Sound(path)
@@ -274,10 +331,31 @@ def load_sound_effects() -> dict:
                 print(f"Error loading sound {path}: {e}")
                 sounds[key] = None
         else:
-            print(f"Warning: Sound not found at {path}")
             sounds[key] = None
     
     return sounds
+
+
+def create_default_back_image() -> pygame.Surface:
+    """Create default card back"""
+    surf = pygame.Surface((100, 100))
+    surf.fill((50, 50, 150))
+    pygame.draw.rect(surf, (100, 100, 200), (10, 10, 80, 80), 5)
+    font = pygame.font.SysFont(None, 40)
+    text = font.render("?", True, (255, 255, 255))
+    surf.blit(text, (35, 25))
+    return surf
+
+
+def create_placeholder_image(number: int) -> Tuple[pygame.Surface, str]:
+    """Create placeholder card"""
+    surf = pygame.Surface((100, 100))
+    surf.fill((random.randint(100, 200), random.randint(100, 200), random.randint(100, 200)))
+    font = pygame.font.SysFont(None, 50)
+    text = font.render(str(number), True, (255, 255, 255))
+    text_rect = text.get_rect(center=(50, 50))
+    surf.blit(text, text_rect)
+    return (surf, f"placeholder_{number}")
 
 
 class AudioController:
@@ -1413,13 +1491,9 @@ def main():
     theme_bg = load_theme_background()
     leaderboard_bg = load_leaderboard_background()
     settings_bg = load_settings_background()
-    nightmare_menu_bg = load_background_image(f"{ASSETS_DIR}/nightmare_menu_background.jpg")
-    if nightmare_menu_bg is None:
-        nightmare_menu_bg = menu_bg
-    nightmare_leaderboard_bg = load_background_image(f"{ASSETS_DIR}/nightmare_leaderboard_background.jpg")
-    if nightmare_leaderboard_bg is None:
-        nightmare_leaderboard_bg = leaderboard_bg 
-    
+    nightmare_menu_bg = load_menu_background("nightmare")
+    nightmare_leaderboard_bg = leaderboard_bg
+
     menu_music = load_menu_music()
     audio.play_music(menu_music, volume=0.3)
     
