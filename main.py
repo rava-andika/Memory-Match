@@ -194,7 +194,7 @@ def load_theme_images(mode: str, theme: int) -> Tuple[List[Tuple], Optional[pyga
     try:
         if os.path.isdir(collection_path):
             for f in os.listdir(collection_path):
-                if f.lower().endswith((".png", ".jpg", ".jpeg")):
+                if f.lower().endswith((".png", ".jpg", ".jpeg")) and f.lower() not in ("back.png", "card_back.png"):
                     p = os.path.join(collection_path, f)
                     try:
                         surf = pygame.image.load(p).convert_alpha()
